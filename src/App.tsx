@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import { findBestHardware } from './hardwareDb'
 import './App.css'
 
@@ -158,6 +160,73 @@ function App() {
       targetTimeNum
     )
     setSolution(result)
+  }
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('hardware-results-panel')
+    if (!element) {
+      console.error('CRITICAL: Element not found')
+      alert('Error: Could not find the results panel to print.')
+      return
+    }
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#1a1d21',
+      })
+      const imgData = canvas.toDataURL('image/png')
+
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const imgProps = pdf.getImageProperties(imgData)
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as Window & { showSaveFilePicker: (opts: { suggestedName: string; types: { description: string; accept: Record<string, string[]> }[] }) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+            suggestedName: 'AVIEW_Hardware_Quote.pdf',
+            types: [{
+              description: 'PDF Document',
+              accept: { 'application/pdf': ['.pdf'] },
+            }],
+          })
+          const writable = await handle.createWritable()
+          await writable.write(pdf.output('blob'))
+          await writable.close()
+          return
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return
+        }
+      }
+
+      pdf.save('AVIEW_Hardware_Quote.pdf')
+    } catch (error) {
+      console.error('PDF Generation Failed:', error)
+      alert('Failed to generate PDF. Check console for details.')
+    }
+  }
+
+  const handleShareEmail = () => {
+    if (!solution) return
+    const body = [
+      'Here are the required specs:',
+      '',
+      'Minimum Configuration:',
+      `Storage: ${solution.minimum.storage}`,
+      `CPU: ${solution.minimum.cpu}`,
+      `RAM: ${solution.minimum.ram}`,
+      `GPU: ${solution.minimum.gpu}`,
+      '',
+      'Recommended Configuration:',
+      `Storage: ${solution.recommended.storage}`,
+      `CPU: ${solution.recommended.cpu}`,
+      `RAM: ${solution.recommended.ram}`,
+      `GPU: ${solution.recommended.gpu}`,
+    ].join('\n')
+    const mailto = `mailto:?subject=${encodeURIComponent('AVIEW Hardware Specification Quote')}&body=${encodeURIComponent(body)}`
+    window.location.href = mailto
   }
 
   return (
@@ -352,7 +421,12 @@ function App() {
       <main className="flex-1 overflow-auto p-8 flex items-start justify-center">
         <div className="w-full max-w-6xl">
           {solution ? (
-            <section className="bg-[#141619] rounded-xl border-2 border-aview-emerald/50 overflow-hidden">
+            <>
+            <div
+              id="hardware-results-panel"
+              className="bg-[#1a1d21] rounded-xl border-2 border-aview-emerald/50 overflow-hidden"
+            >
+            <section className="bg-[#141619] rounded-xl overflow-hidden">
               <div className="px-8 py-6 border-b border-gray-800 bg-aview-emerald/10">
                 <h2 className="text-xl font-semibold text-aview-emerald">
                   Tailored Solution Specification
@@ -415,6 +489,31 @@ function App() {
                 </div>
               </div>
             </section>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-4">
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-aview-emerald text-aview-slate font-semibold rounded-lg hover:bg-aview-emerald/90 focus:outline-none focus:ring-2 focus:ring-aview-emerald focus:ring-offset-2 focus:ring-offset-aviewSlate transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download Quote as PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleShareEmail}
+                className="inline-flex items-center gap-2 px-5 py-3 border-2 border-aview-emerald text-aview-emerald font-semibold rounded-lg hover:bg-aview-emerald/10 focus:outline-none focus:ring-2 focus:ring-aview-emerald focus:ring-offset-2 focus:ring-offset-aviewSlate transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Share via Email
+              </button>
+            </div>
+            </>
           ) : (
             <div className="bg-[#141619] rounded-xl border border-gray-800 p-16 text-center">
               <p className="text-gray-500 text-lg">
