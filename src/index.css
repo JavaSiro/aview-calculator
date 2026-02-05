@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --color-aview-slate: #1a1d21;
+  --color-aview-emerald: #00bfa5;
+}
+
+body {
+  background-color: var(--color-aview-slate);
+  color: white;
+}
